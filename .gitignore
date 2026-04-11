@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain-types/
+frontend/.next/
+frontend/out/
+.DS_Store
