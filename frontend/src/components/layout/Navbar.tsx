@@ -1,12 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useWallet } from "@/contexts/WalletContext";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+	const pathname = usePathname();
+	const isActive = pathname === href;
+
+	return (
+		<Link
+			href={href}
+			className={cn(
+				"text-sm transition-colors",
+				isActive ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+			)}
+		>
+			{children}
+		</Link>
+	);
+}
 
 export function Navbar() {
-	const { isConnected, isVerifier, isAdmin } = useWallet();
+	const { isConnected, isVerifier } = useWallet();
 
 	return (
 		<nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -15,36 +34,25 @@ export function Navbar() {
 					<Link href="/" className="text-xl font-bold">
 						KYCChain
 					</Link>
-					{isConnected && (
-						<div className="hidden md:flex items-center gap-4">
-							<Link href="/customer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-								Dashboard
-							</Link>
-							{isVerifier && (
-								<Link href="/verifier" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-									Verifier
-								</Link>
-							)}
-							<Link href="/verify" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-								Verify
-							</Link>
-						</div>
-					)}
-					{!isConnected && (
-						<Link href="/verify" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-							Verify
-						</Link>
-					)}
+					<div className="hidden md:flex items-center gap-4">
+						{isConnected && !isVerifier && (
+							<NavLink href="/customer">My KYC</NavLink>
+						)}
+						{isConnected && isVerifier && (
+							<NavLink href="/verifier">Review KYC</NavLink>
+						)}
+						<NavLink href="/verify">Verify Address</NavLink>
+					</div>
 				</div>
 				<div className="flex items-center gap-3">
-					{isConnected && isAdmin && (
-						<Badge variant="outline" className="text-xs">
-							Admin
+					{isConnected && isVerifier && (
+						<Badge variant="outline" className="text-xs border-green-600 text-green-500">
+							Verifier
 						</Badge>
 					)}
-					{isConnected && isVerifier && (
+					{isConnected && !isVerifier && (
 						<Badge variant="outline" className="text-xs">
-							Verifier
+							Customer
 						</Badge>
 					)}
 					<ConnectWalletButton />
