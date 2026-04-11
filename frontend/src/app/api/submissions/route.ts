@@ -79,15 +79,35 @@ export async function GET(request: NextRequest) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
-		const contract = getReadOnlyContract();
-		const isVerifier = await contract.isVerifier(verifierAddress);
-		if (!isVerifier) {
-			return NextResponse.json({ error: "Not a verifier" }, { status: 403 });
+		// Verify on-chain that caller is a verifier
+		try {
+			const contract = getReadOnlyContract();
+			const isVerifier = await contract.isVerifier(verifierAddress);
+			if (!isVerifier) {
+				return NextResponse.json({ error: "Not a verifier" }, { status: 403 });
+			}
+		} catch (contractErr) {
+			console.error("Contract call failed:", contractErr);
+			return NextResponse.json(
+				{ error: "Failed to verify role on-chain: " + (contractErr instanceof Error ? contractErr.message : String(contractErr)) },
+				{ status: 500 }
+			);
 		}
 
 		const status = request.nextUrl.searchParams.get("status") || "pending";
 
-		const { data, error } = await getSupabaseAdmin()
+		let supabase;
+		try {
+			supabase = getSupabaseAdmin();
+		} catch (sbErr) {
+			console.error("Supabase init failed:", sbErr);
+			return NextResponse.json(
+				{ error: "Database not configured: " + (sbErr instanceof Error ? sbErr.message : String(sbErr)) },
+				{ status: 500 }
+			);
+		}
+
+		const { data, error } = await supabase
 			.from("kyc_submissions")
 			.select("*")
 			.eq("status", status)
@@ -95,14 +115,14 @@ export async function GET(request: NextRequest) {
 
 		if (error) {
 			console.error("DB query error:", error);
-			return NextResponse.json({ error: "Failed to fetch submissions" }, { status: 500 });
+			return NextResponse.json({ error: "DB query failed: " + error.message }, { status: 500 });
 		}
 
 		const submissions = await Promise.all(
 			(data || []).map(async (row) => {
 				let selfieUrl = "";
 				if (row.selfie_path) {
-					const { data: signedData } = await getSupabaseAdmin().storage
+					const { data: signedData } = await supabase.storage
 						.from("kyc-selfies")
 						.createSignedUrl(row.selfie_path, 3600);
 					selfieUrl = signedData?.signedUrl || "";
@@ -127,6 +147,9 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({ submissions });
 	} catch (err) {
 		console.error("Fetch error:", err);
-		return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+		return NextResponse.json(
+			{ error: "Internal server error: " + (err instanceof Error ? err.message : String(err)) },
+			{ status: 500 }
+		);
 	}
 }
